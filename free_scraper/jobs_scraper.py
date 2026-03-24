@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from typing import List, Optional
 import requests
 from bs4 import BeautifulSoup
@@ -8,6 +9,7 @@ import json
 from urllib.parse import quote
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
+import argparse
 
 
 @dataclass
@@ -17,6 +19,8 @@ class JobData:
     location: str
     job_link: str
     posted_date: str
+    scraped_by: str = "UI (headless)"
+    scraped_date: Optional[str] = None
 
 
 class ScraperConfig:
@@ -115,6 +119,9 @@ class LinkedInJobsScraper:
                 for card in job_cards:
                     job_data = self._extract_job_data(card)
                     if job_data:
+                        # Log the scraped date for each obtained posting
+                        scraped_date = time.strftime("%Y-%m-%d %H:%M:%S")
+                        job_data.scraped_date = scraped_date
                         all_jobs.append(job_data)
                         if len(all_jobs) >= max_jobs:
                             break
@@ -133,17 +140,28 @@ class LinkedInJobsScraper:
     ) -> None:
         if not jobs:
             return
-        with open(filename, "w", encoding="utf-8") as f:
+        write_mode = "w" if not os.path.exists(filename) else "a"
+        with open(filename, write_mode, encoding="utf-8") as f:
             json.dump([vars(job) for job in jobs], f, indent=2, ensure_ascii=False)
         print(f"Saved {len(jobs)} jobs to {filename}")
 
 
 def main():
-    params = {"keywords": "AI/ML Engineer", "location": "London", "max_jobs": 100}
+    parser = argparse.ArgumentParser(description="LinkedIn Jobs Scraper")
+    parser.add_argument("--keywords", default="AI/ML Engineer", help="Job keywords to search for")
+    parser.add_argument("--location", default="London", help="Location to search for jobs")
+    parser.add_argument("--max_jobs", type=int, default=100, help="Maximum number of jobs to scrape")
+    parser.add_argument("--output", default="linkedin_jobs.json", help="Output filename for scraped jobs")
+
+    args = parser.parse_args()
 
     scraper = LinkedInJobsScraper()
-    jobs = scraper.scrape_jobs(**params)
-    scraper.save_results(jobs)
+    jobs = scraper.scrape_jobs(
+        keywords=args.keywords,
+        location=args.location,
+        max_jobs=args.max_jobs
+    )
+    scraper.save_results(jobs, filename=args.output)
 
 
 if __name__ == "__main__":
