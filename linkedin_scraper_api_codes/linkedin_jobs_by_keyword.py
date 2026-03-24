@@ -1,3 +1,7 @@
+import argparse
+import os
+from dotenv import load_dotenv
+
 import requests
 import json
 import time
@@ -18,7 +22,7 @@ class LinkedInJobsDiscovery:
         }
         self.dataset_id = "gd_lpfll7v5hcqtkxl6l"
 
-    def discover_jobs(self, search_criteria):
+    def discover_jobs(self, search_criteria, output="linkedin_jobs_keyword.json"):
         try:
             start_time = time.time()
             logging.info("Discovering jobs")
@@ -42,7 +46,11 @@ class LinkedInJobsDiscovery:
                         jobs_data = self._get_data(snapshot_id)
                         if jobs_data:
                             logging.info(f"Discovery completed after {elapsed} seconds")
-                            self._save_data(jobs_data)
+                            metadata = {
+                                "Scraped By": "BrightData API - by keyword",
+                                "Scraped Date": self._get_timestamp()
+                            }
+                            self._save_data(jobs_data, filename=output, metadata=metadata)
                             return jobs_data
                     break
                 elif status in ["failed", "error"]:
@@ -99,12 +107,93 @@ class LinkedInJobsDiscovery:
             logging.error(f"Error retrieving data: {str(e)}")
             return None
 
-    def _save_data(self, data, filename="linkedin_jobs_keyword.json"):
+    def _normalize_records(self, data, metadata=None):
+        if data is None:
+            records = []
+        elif isinstance(data, list):
+            records = data
+        elif isinstance(data, dict) and isinstance(data.get("data"), list):
+            records = data["data"]
+        elif isinstance(data, dict):
+            records = [data]
+        else:
+            records = [{"value": data}]
+
+        normalized = []
+        for item in records:
+            if isinstance(item, dict):
+                enriched = item.copy()
+                if metadata:
+                    enriched["metadata"] = metadata
+                normalized.append(enriched)
+            else:
+                wrapped = {"value": item}
+                if metadata:
+                    wrapped["metadata"] = metadata
+                normalized.append(wrapped)
+        return normalized
+
+    def _parse_json_stream(self, raw_text):
+        decoder = json.JSONDecoder()
+        idx = 0
+        length = len(raw_text)
+        values = []
+
+        while idx < length:
+            while idx < length and raw_text[idx].isspace():
+                idx += 1
+            if idx >= length:
+                break
+
+            value, end = decoder.raw_decode(raw_text, idx)
+            values.append(value)
+            idx = end
+
+            while idx < length and raw_text[idx].isspace():
+                idx += 1
+            if idx < length and raw_text[idx] == ',':
+                idx += 1
+
+        return values
+
+    def _load_existing_records(self, filename):
+        if not os.path.exists(filename):
+            return []
+
         try:
+            with open(filename, "r", encoding="utf-8") as f:
+                raw_text = f.read().strip()
+            if not raw_text:
+                return []
+
+            try:
+                parsed = json.loads(raw_text)
+                return self._normalize_records(parsed)
+            except json.JSONDecodeError:
+                parsed_values = self._parse_json_stream(raw_text)
+                records = []
+                for value in parsed_values:
+                    records.extend(self._normalize_records(value))
+                logging.warning(
+                    f"Recovered {len(records)} existing records from concatenated JSON in {filename}"
+                )
+                return records
+        except Exception as e:
+            logging.error(f"Error reading existing data from {filename}: {str(e)}")
+            return []
+
+    def _save_data(self, data, filename="linkedin_jobs_keyword.json", metadata=None):
+        try:
+            existing_records = self._load_existing_records(filename)
+            new_records = self._normalize_records(data, metadata=metadata)
+            merged_records = existing_records + new_records
+
             with open(filename, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            logging.info(f"Data saved to {filename}")
-            logging.info(f"Discovered {len(data)} jobs")
+                json.dump(merged_records, f, indent=2, ensure_ascii=False)
+
+            logging.info(
+                f"Saved {len(new_records)} new jobs to {filename} (total: {len(merged_records)})"
+            )
         except Exception as e:
             logging.error(f"Error saving data: {str(e)}")
 
@@ -113,23 +202,47 @@ class LinkedInJobsDiscovery:
 
 
 def main():
-    api_token = "<YOUR_API_TOKEN>"
+    load_dotenv()
+    api_token = os.getenv("BRIGHTDATA_APIKEY")
     discoverer = LinkedInJobsDiscovery(api_token)
+
+    # CLI arguments (dynamic debugging)
+    parser = argparse.ArgumentParser(description="Discover LinkedIn jobs by keyword")
+    parser.add_argument("--location", default="New York", help="Location to search for jobs")
+    parser.add_argument("--keyword", default="data analyst", help="Job keyword to search for")
+    parser.add_argument("--country", default="US", help="Country to search for jobs")
+    parser.add_argument("--time_range", default="Any time", help="Time range for job postings")
+    parser.add_argument("--job_type", default="Part-time", help="Type of job (e.g., Full-time, Part-time)")
+    parser.add_argument("--experience_level", default="Entry level", help="Experience level for job postings")
+    parser.add_argument("--remote", default="Remote", help="Remote work option (e.g., Remote, On-site, Hybrid)")
+    parser.add_argument("--company", default="", help="Company name to filter job postings")
+    parser.add_argument("--output", default="linkedin_jobs_keyword.json", help="Output filename for discovered jobs")
+
+    args = parser.parse_args()
+    location = args.location
+    keyword = args.keyword
+    country = args.country
+    time_range = args.time_range
+    job_type = args.job_type
+    exp_lvl = args.experience_level
+    remote_option = args.remote
+    company_name = args.company
+    output_filepath = args.output
 
     search_criteria = [
         {
-            "location": "New York",
-            "keyword": "data analyst",
-            "country": "US",
-            "time_range": "Any time",
-            "job_type": "Part-time",
-            "experience_level": "Entry level",
-            "remote": "Remote",
-            "company": "",
+            "location": location,
+            "keyword": keyword,
+            "country": country,
+            "time_range": time_range,
+            "job_type": job_type,
+            "experience_level": exp_lvl,
+            "remote": remote_option,
+            "company": company_name
         },
     ]
 
-    discoverer.discover_jobs(search_criteria)
+    discoverer.discover_jobs(search_criteria, output=output_filepath)
 
 
 if __name__ == "__main__":
