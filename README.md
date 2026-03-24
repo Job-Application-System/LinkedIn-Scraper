@@ -145,6 +145,7 @@ Before getting started, you'll need:
     - Activate your account by adding a payment method under the **Billing** page.
 - API Token
     - [Follow this guide](https://docs.brightdata.com/general/account/api-token) to obtain your API token.
+    - Set the API Key in an `.env` file labeled "BRIGHTDATA_APIKEY".
 
 ### 1. Company Information Scraper
 Extract detailed data about companies using their LinkedIn URLs.
@@ -621,15 +622,17 @@ Extract job listings using advanced search criteria and filters to find relevant
 #### Input Parameters
 | Parameter          | Type    | Required | Description                                                                                      |
 |--------------------|---------|----------|--------------------------------------------------------------------------------------------------|
-| `location`         | string  | Yes      | Collect jobs in a specific location                                                             |
-| `keyword`          | string  | No       | Search for jobs by keyword or title (e.g., "Product Manager"). Use quotation marks for exact matches. |
-| `country`          | string  | No       | 2-letter country code (e.g., US or FR)                                                   |
-| `time_range`       | string  | No       | Time range of job posting (e.g., past 24 hours, past week)                      |
-| `job_type`         | string  | No       | Filter by job type (e.g., full-time, part-time, contract)                                        |
-| `experience_level` | string  | No       | Filter by required experience level (e.g., entry, mid, senior)                                  |
-| `remote`           | string  | No       | Filter jobs by remote work options                                                              |
-| `company`          | string  | No       | Search jobs at a specific company                                                               |
-| `selective_search` | boolean | No       | When set to `true`, excludes titles that do not contain the specified keywords                  |
+| `location`         | string  | Yes      | Free-text location. Valid examples: `"New York"`, `"Toronto"`, `"Paris"`, `"London"`. |
+| `keyword`          | string  | No       | Job title/keyword text. Valid examples: `"Product Manager"`, `"data analyst"`, `"\"python developer\""` (exact phrase). |
+| `country`          | string  | No       | 2-letter country code. Valid examples: `US`, `CA`, `FR`, `GB`, `DE`, `AU`, `IN`. Use `CA` for Canada. |
+| `time_range`       | string  | No       | Posting-time filter. Valid examples: `"Any time"`, `"Past month"`, `"Past week"`, `"Past 24 hours"`. |
+| `job_type`         | string  | No       | Employment filter. Valid examples: `"Full-time"`, `"Part-time"`, `"Contract"`, `"Internship"`, or empty string. |
+| `experience_level` | string  | No       | Experience filter. Valid examples: `"Internship"`, `"Entry level"`, `"Associate"`, `"Mid-Senior level"`, `"Director"`, `"Executive"`, or empty string. |
+| `remote`           | string  | No       | Work mode filter. Valid values: `"Remote"`, `"On-site"`, `"Hybrid"`, or empty string. |
+| `company`          | string  | No       | Company name filter as free text. Valid examples: `"Google"`, `"Microsoft"`, or empty string. |
+| `selective_search` | boolean | No       | `true` or `false`. When `true`, excludes titles that do not contain the specified keyword text. |
+
+> **Important:** For `country`, use ISO-style 2-letter codes. Values like `Canada` or `CAN` may return request validation errors.
 
 
 #### Sample Response
@@ -725,6 +728,8 @@ search_criteria = [
 ```
 
 👉 View [Full Python Code](https://github.com/luminati-io/LinkedIn-Scraper/blob/main/linkedin_scraper_api_codes/linkedin_jobs_by_keyword.py)
+
+👉 OpenAPI (Swagger) spec: [linkedin_jobs_by_keyword.openapi.yaml](openapi/linkedin_jobs_by_keyword.openapi.yaml)
 
 ### 10. Job Listings Discovery by URL
 Extract job listings using direct LinkedIn search URLs

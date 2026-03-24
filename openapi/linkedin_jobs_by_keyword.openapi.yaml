@@ -1,0 +1,207 @@
+openapi: 3.0.3
+info:
+  title: Bright Data LinkedIn Jobs - Discovery by Keyword
+  version: 1.0.0
+  description: |
+    OpenAPI reference for the LinkedIn "jobs by keyword" workflow used in this project.
+    This includes the trigger call plus polling and snapshot retrieval.
+
+    Note: This spec documents the subset used by this repository.
+
+servers:
+  - url: https://api.brightdata.com/datasets/v3
+
+tags:
+  - name: Jobs by Keyword
+    description: Trigger, monitor, and fetch LinkedIn jobs discovered by keyword.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /trigger:
+    post:
+      tags: [Jobs by Keyword]
+      summary: Trigger LinkedIn jobs discovery by keyword
+      description: Creates a discovery job and returns a snapshot id.
+      operationId: triggerJobsByKeywordDiscovery
+      parameters:
+        - in: query
+          name: dataset_id
+          required: true
+          schema:
+            type: string
+            enum: [gd_lpfll7v5hcqtkxl6l]
+          description: Bright Data dataset id for LinkedIn jobs-by-keyword.
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [discover_new]
+        - in: query
+          name: discover_by
+          required: true
+          schema:
+            type: string
+            enum: [keyword]
+        - in: query
+          name: include_errors
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+            default: "true"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/JobKeywordSearchCriteria'
+            examples:
+              canada_ai_ml:
+                value:
+                  - location: Toronto
+                    keyword: AI/ML Engineer
+                    country: CA
+                    time_range: Any time
+                    job_type: Full-time
+                    experience_level: Entry level
+                    remote: Remote
+                    company: ""
+      responses:
+        '200':
+          description: Discovery successfully triggered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerResponse'
+        '400':
+          description: Invalid query/body parameters.
+        '401':
+          description: Invalid or missing API token.
+
+  /progress/{snapshot_id}:
+    get:
+      tags: [Jobs by Keyword]
+      summary: Check discovery progress
+      operationId: getDiscoveryProgress
+      parameters:
+        - in: path
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current snapshot status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressResponse'
+        '401':
+          description: Invalid or missing API token.
+        '404':
+          description: Snapshot not found.
+
+  /snapshot/{snapshot_id}:
+    get:
+      tags: [Jobs by Keyword]
+      summary: Get discovered jobs snapshot
+      operationId: getJobsSnapshot
+      parameters:
+        - in: path
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: format
+          required: false
+          schema:
+            type: string
+            enum: [json, ndjson, jsonl, csv]
+            default: json
+      responses:
+        '200':
+          description: Snapshot data.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      type: object
+                  - type: object
+        '401':
+          description: Invalid or missing API token.
+        '404':
+          description: Snapshot not found.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Token
+
+  schemas:
+    JobKeywordSearchCriteria:
+      type: object
+      required: [location]
+      additionalProperties: false
+      properties:
+        location:
+          type: string
+          description: Free-text location.
+          example: Toronto
+        keyword:
+          type: string
+          description: Job title/keyword text.
+          example: AI/ML Engineer
+        country:
+          type: string
+          description: 2-letter country code.
+          pattern: '^[A-Z]{2}$'
+          example: CA
+        time_range:
+          type: string
+          description: Posting-time filter.
+          enum: [Any time, Past month, Past week, Past 24 hours]
+        job_type:
+          type: string
+          description: Employment type filter.
+          enum: [Full-time, Part-time, Contract, Internship, ""]
+        experience_level:
+          type: string
+          description: Experience level filter.
+          enum: [Internship, Entry level, Associate, Mid-Senior level, Director, Executive, ""]
+        remote:
+          type: string
+          description: Work mode filter.
+          enum: [Remote, On-site, Hybrid, ""]
+        company:
+          type: string
+          description: Company name filter (free text or empty string).
+          example: Google
+        selective_search:
+          type: boolean
+          description: If true, excludes titles not containing provided keyword text.
+
+    TriggerResponse:
+      type: object
+      properties:
+        snapshot_id:
+          type: string
+      required: [snapshot_id]
+
+    ProgressResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [running, ready, failed, error]
+      required: [status]
