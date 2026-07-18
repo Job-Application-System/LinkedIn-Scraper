@@ -1,3 +1,6 @@
+import argparse
+import os
+from dotenv import load_dotenv
 import requests
 import json
 import time
@@ -57,7 +60,11 @@ class LinkedInJobsURLDiscovery:
                         jobs_data = self._get_data(snapshot_id)
                         if jobs_data:
                             logging.info(f"Discovery completed after {elapsed} seconds")
-                            self._save_data(jobs_data)
+                            metadata = {
+                                "Scrapped By": "BrightData API - by URL",
+                                "Scraped Date": self._get_timestamp()
+                            }
+                            self._save_data({**vars(jobs_data), **metadata})
                             return jobs_data
                     break
                 elif status in ["failed", "error"]:
@@ -122,9 +129,10 @@ class LinkedInJobsURLDiscovery:
         filename: str = "linkedin_jobs_search_url.json",
     ) -> None:
         try:
-            with open(filename, "w", encoding="utf-8") as f:
+            write_mode = "w" if not os.path.exists(filename) else "a"
+            with open(filename, write_mode, encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            logging.info(f"Data saved to {filename}")
+            logging.info(f"Data {'saved' if write_mode == 'w' else 'appended'} to {filename}")
             logging.info(f"Discovered {len(data)} jobs")
         except IOError as e:
             logging.error(f"Error saving data: {e}")
@@ -134,12 +142,19 @@ class LinkedInJobsURLDiscovery:
 
 
 def main() -> None:
-    api_token = "<YOUR_API_TOKEN>"
+    load_dotenv()
+    api_token = os.getenv("BRIGHTDATA_APIKEY")
     discoverer = LinkedInJobsURLDiscovery(api_token)
+    
+    parser = argparse.ArgumentParser(description="Discover LinkedIn jobs by search URLs")
+    parser.add_argument("--domain", default="Software", help="Job domain to search for")
+
+    args = parser.parse_args()
+    domain = args.domain
 
     search_urls = [
         {
-            "url": "https://www.linkedin.com/jobs/search?keywords=Software&location=Tel%20Aviv-Yafo&geoId=101570771&trk=public_jobs_jobs-search-bar_search-submit&position=1&pageNum=0&f_TPR=r3600"
+            "url": f"https://www.linkedin.com/jobs/search?keywords={domain}&location=Tel%20Aviv-Yafo&geoId=101570771&trk=public_jobs_jobs-search-bar_search-submit&position=1&pageNum=0&f_TPR=r3600"
         },
     ]
 
