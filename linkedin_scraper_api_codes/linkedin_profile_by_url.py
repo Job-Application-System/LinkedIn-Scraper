@@ -3,7 +3,7 @@ import json
 import time
 from datetime import datetime
 from typing import List, Dict, Optional, Any
-
+from pathlib import Path
 
 class LinkedInProfileInfo:
     def __init__(self, api_token: str, dataset_id: str = "gd_l1viktl72bvl7bjuj0"):
@@ -13,15 +13,21 @@ class LinkedInProfileInfo:
             "Content-Type": "application/json",
         }
         self.dataset_id = dataset_id
+        self.LINKEDIN_BASE_URL = "https://www.linkedin.com/in/"
 
     def collect_profile_info(
-        self, profile_urls: List[Dict[str, str]]
+        self, profile_urls: List[Dict[str, str]], 
+        output_dir: str | Path
     ) -> Optional[bool]:
         try:
             start_time = datetime.now()
             print(
                 f"\nStarting collection for {len(profile_urls)} profiles at {start_time.strftime('%H:%M:%S')}"
             )
+            # Filter only valid LinkedIn profile URLs
+            profile_urls = [
+                url for url in profile_urls if url.get("url", "").startswith(self.LINKEDIN_BASE_URL)
+            ]
 
             collection_response = self._trigger_collection(profile_urls)
             if not collection_response or "snapshot_id" not in collection_response:
@@ -39,7 +45,7 @@ class LinkedInProfileInfo:
                     print(f"\nCollection completed after {elapsed} seconds")
                     profile_data = self._get_data(snapshot_id)
                     if profile_data:
-                        self._save_data(profile_data)
+                        self._save_data(profile_data, filename=Path(output_dir) / f"profiles_by_url_{start_time.strftime('%H:%M:%S')}.json")
                         print(f"✓ Collected {len(profile_data)} profiles")
                         return True
                     break
@@ -116,7 +122,7 @@ def main():
         {"url": "https://www.linkedin.com/in/simonsinek/"},
     ]
 
-    collector.collect_profile_info(profiles)
+    collector.collect_profile_info(profiles, output_dir=Path("scraper_profiles"))
 
 
 if __name__ == "__main__":

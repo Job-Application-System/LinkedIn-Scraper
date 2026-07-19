@@ -3,6 +3,7 @@ import json
 import time
 from datetime import datetime
 from typing import List, Dict, Optional, Any
+from pathlib import Path
 
 DATASET_ID = "gd_l1viktl72bvl7bjuj0"
 API_URL = "https://api.brightdata.com/datasets/v3"
@@ -16,7 +17,7 @@ class LinkedInProfileDiscovery:
             "Content-Type": "application/json",
         }
 
-    def discover_profiles(self, people: List[Dict[str, str]]) -> Optional[bool]:
+    def discover_profiles(self, people: List[Dict[str, str]], output_dir: Path) -> Optional[bool]:
         start_time = datetime.now()
         print(
             f"\nStarting discovery for {len(people)} profiles at {start_time.strftime('%H:%M:%S')}"
@@ -40,7 +41,7 @@ class LinkedInProfileDiscovery:
                 print(f"\nDiscovery completed after {elapsed} seconds")
                 profile_data = self._get_data(snapshot_id)
                 if profile_data:
-                    self._save_data(profile_data)
+                    self._save_data(profile_data, output_dir / f"profiles_by_name_{start_time.strftime('%H:%M:%S')}.json")
                     return True
                 break
             elif status in ["failed", "error"]:
@@ -116,7 +117,7 @@ def main() -> None:
         {"first_name": "Bill", "last_name": "Gates"},
     ]
 
-    discoverer.discover_profiles(people)
+    discoverer.discover_profiles(people, output_dir=Path("scraper_profiles"))
 
 
 if __name__ == "__main__":

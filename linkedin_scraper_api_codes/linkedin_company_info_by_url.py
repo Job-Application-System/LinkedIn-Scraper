@@ -4,7 +4,7 @@ import time
 import logging
 from datetime import datetime
 from typing import List, Dict, Optional, Any
-
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -23,7 +23,8 @@ class LinkedInCompanyInfo:
         }
 
     def collect_company_info(
-        self, company_urls: List[Dict[str, str]]
+        self, company_urls: List[Dict[str, str]],
+        output_dir: str | Path
     ) -> Optional[bool]:
         start_time = datetime.now()
         logging.info(
@@ -53,7 +54,7 @@ class LinkedInCompanyInfo:
                 return None
             logging.info(f"Status: {status} ({elapsed}s elapsed)")
             time.sleep(5)
-        self._save_data(company_data)
+        self._save_data(company_data, filename=Path(output_dir) / f"linkedin_company_info_{start_time.strftime('%H:%M:%S')}.json")
         return True
 
     def _trigger_collection(
