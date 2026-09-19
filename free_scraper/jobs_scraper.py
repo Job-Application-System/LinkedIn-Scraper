@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import time
 import random
 import json
+import re
 from urllib.parse import quote
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -42,6 +43,9 @@ class ScraperConfig:
     }
 
 
+MARKDOWN_LINK_PATTERN = re.compile(r"(?:https?://)?\[([^\]]+)\]\((https?://[^)]+)\)")
+
+
 class LinkedInJobsScraper:
     def __init__(self):
         self.session = self._setup_session()
@@ -62,7 +66,18 @@ class LinkedInJobsScraper:
         }
         return f"{ScraperConfig.BASE_URL}?{'&'.join(f'{k}={quote(str(v))}' for k, v in params.items())}"
 
+    def _normalize_url(self, url: str) -> str:
+        """Turn accidental Markdown links into plain URLs before requesting."""
+        url = url.strip()
+        match = MARKDOWN_LINK_PATTERN.search(url)
+        if match:
+            url = url.replace(match.group(0), match.group(2))
+        if url.startswith("http://www.linkedin.com"):
+            url = "https://" + url.removeprefix("http://")
+        return url
+
     def _clean_job_url(self, url: str) -> str:
+        url = self._normalize_url(url)
         return url.split("?")[0] if "?" in url else url
 
     def _extract_job_data(self, job_card: BeautifulSoup) -> Optional[JobData]:
@@ -92,8 +107,9 @@ class LinkedInJobsScraper:
             return None
 
     def _fetch_job_page(self, url: str) -> BeautifulSoup:
+        url = self._normalize_url(url)
         try:
-            response = self.session.get(url, headers=ScraperConfig.HEADERS)
+            response = self.session.get(url, headers=ScraperConfig.HEADERS, timeout=20)
             if response.status_code != 200:
                 raise RuntimeError(
                     f"Failed to fetch data: Status code {response.status_code}"
